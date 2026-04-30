@@ -28,15 +28,37 @@ def _serialize_todo(row):
 
 @api.get("/api/todos")
 def list_todos():
+    completed_param = request.args.get("completed")
+    completed_filter = None
+    if completed_param is not None:
+        lowered = completed_param.strip().lower()
+        if lowered in {"true", "1"}:
+            completed_filter = True
+        elif lowered in {"false", "0"}:
+            completed_filter = False
+        else:
+            return jsonify({"error": "completed must be true or false"}), 400
+
     with get_connection() as conn:
         with conn.cursor(row_factory=dict_row) as cur:
-            cur.execute(
-                """
-                SELECT id, title, is_completed, created_at, completed_at
-                FROM todos
-                ORDER BY id ASC
-                """
-            )
+            if completed_filter is None:
+                cur.execute(
+                    """
+                    SELECT id, title, is_completed, created_at, completed_at
+                    FROM todos
+                    ORDER BY id ASC
+                    """
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT id, title, is_completed, created_at, completed_at
+                    FROM todos
+                    WHERE is_completed = %s
+                    ORDER BY id ASC
+                    """,
+                    (completed_filter,),
+                )
             rows = cur.fetchall()
     return jsonify([_serialize_todo(row) for row in rows]), 200
 
@@ -82,3 +104,16 @@ def mark_todo_complete(todo_id: int):
         return jsonify({"error": "todo not found"}), 404
 
     return jsonify(_serialize_todo(row)), 200
+
+
+@api.delete("/api/todos/<int:todo_id>")
+def delete_todo(todo_id: int):
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM todos WHERE id = %s", (todo_id,))
+            deleted_count = cur.rowcount
+
+    if deleted_count == 0:
+        return jsonify({"error": "todo not found"}), 404
+
+    return jsonify({"status": "deleted", "id": todo_id}), 200

@@ -29,3 +29,40 @@ def test_create_todo_requires_title(client):
     response = client.post("/api/todos", json={"title": "   "})
     assert response.status_code == 400
     assert response.get_json()["error"] == "title is required"
+
+
+def test_filter_todos_by_completion(client):
+    first = client.post("/api/todos", json={"title": "Do laundry"}).get_json()
+    second = client.post("/api/todos", json={"title": "Send email"}).get_json()
+
+    client.patch(f"/api/todos/{second['id']}/complete")
+
+    completed_response = client.get("/api/todos?completed=true")
+    assert completed_response.status_code == 200
+    completed = completed_response.get_json()
+    assert len(completed) == 1
+    assert completed[0]["id"] == second["id"]
+
+    open_response = client.get("/api/todos?completed=false")
+    assert open_response.status_code == 200
+    open_todos = open_response.get_json()
+    assert len(open_todos) == 1
+    assert open_todos[0]["id"] == first["id"]
+
+
+def test_delete_todo(client):
+    created = client.post("/api/todos", json={"title": "Temporary task"}).get_json()
+
+    delete_response = client.delete(f"/api/todos/{created['id']}")
+    assert delete_response.status_code == 200
+    assert delete_response.get_json()["status"] == "deleted"
+
+    list_response = client.get("/api/todos")
+    assert list_response.status_code == 200
+    assert list_response.get_json() == []
+
+
+def test_delete_todo_not_found(client):
+    response = client.delete("/api/todos/9999")
+    assert response.status_code == 404
+    assert response.get_json()["error"] == "todo not found"

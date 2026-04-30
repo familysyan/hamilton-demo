@@ -77,8 +77,10 @@ Open in browser (or curl):
 This demo includes a simple PostgreSQL-backed todo API:
 
 - `GET /api/todos` - list todos
+- `GET /api/todos?completed=true|false` - filter by completion state
 - `POST /api/todos` - create a todo, body: `{"title":"Buy milk"}`
 - `PATCH /api/todos/<id>/complete` - mark a todo as completed
+- `DELETE /api/todos/<id>` - delete a todo
 
 ## 8) Database Migrations
 
