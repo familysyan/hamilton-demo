@@ -1,0 +1,52 @@
+version: 2.1
+
+jobs:
+  test:
+    docker:
+      - image: cimg/python:3.11
+      - image: cimg/postgres:16.3
+        environment:
+          POSTGRES_DB: hamilton
+          POSTGRES_USER: hamilton
+          POSTGRES_PASSWORD: hamilton
+    environment:
+      POSTGRES_URL: postgresql://hamilton:hamilton@127.0.0.1:5432/hamilton
+      REDIS_URL: redis://127.0.0.1:6379/0
+      START_DOCKER_SERVICES: "0"
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+    steps:
+      - checkout
+
+      - run:
+          name: Install PostgreSQL client
+          command: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - run:
+          name: Install Python dependencies
+          command: python -m pip install -r backend/requirements.txt
+
+      - run:
+          name: Wait for PostgreSQL
+          command: |
+            for i in $(seq 1 30); do
+              pg_isready -h 127.0.0.1 -p 5432 -U hamilton -d hamilton && exit 0
+              echo "Postgres not ready yet, waiting..."
+              sleep 1
+            done
+            echo "Postgres failed to become ready in time"
+            exit 1
+
+      - run:
+          name: Run database migrations
+          command: |
+            psql "postgresql://hamilton:hamilton@127.0.0.1:5432/hamilton" -v ON_ERROR_STOP=1 -f backend/migrations/0001_create_users_table/up.sql
+            psql "postgresql://hamilton:hamilton@127.0.0.1:5432/hamilton" -v ON_ERROR_STOP=1 -f backend/migrations/0002_create_todos_table/up.sql
+
+      - run:
+          name: Run integration tests
+          command: cd backend && python -m pytest -q
+
+workflows:
+  ci:
+    jobs:
+      - test
